@@ -1,0 +1,3 @@
+[submodule "3rdParty/mylib"]
+	path = 3rdParty/mylib
+	url = /Users/clackn/src/mylib/
