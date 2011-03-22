@@ -1,0 +1,12 @@
+Matlab examples implimenting a nd-haar transform and it's inverse.
+
+One dimensional versions provide slightly easier to read demonstrations of the
+basic algorithm.
+
+These were written as proof-of-concept code so I could figure out how I wanted
+to put the c code together.
+
+Tested on images and 1d functions.  Limited testing on higher dimensional
+things.
+
+Input must have power-of-2 dimensions.  Dimensions do not need to be equal.
