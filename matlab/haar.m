@@ -23,11 +23,23 @@ function [N,out] = kernel(in)
 % adapted for multidimensional input. reduction on rows
 NN = size(in,1);
 N=NN/2;
+
 t=zeros(size(in));
 t(    1:N  ,:) = in(1:2:NN,:)+in(2:2:NN,:);
 t((N+1):NN ,:) = in(1:2:NN,:)-in(2:2:NN,:);
 t(    1:NN ,:) = t(1:NN,:).*0.70710678118654752440;
 out = t;
+
+%Proof-of-concept In Place-ish implementation below
+
+%in(1:2:NN,:) = in(1:2:NN,:)+in(2:2:NN,:);          %  x+y
+%in(2:2:NN,:) = in(1:2:NN,:)-2.0.*in(2:2:NN,:);     % (x+y)-2y = x-y
+%in(  1:NN,:) = in(1:NN,:).*0.70710678118654752440;
+%map = repmat(1:N,[2 1]);
+%map = map(:);                    % 1 1   2 2   ... N N
+%map(2:2:end) = map(2:2:end) + N; % 1 N+1 2 N+2 ... N 2N
+%in(map,:) = in(1:NN,:);
+%out = in;
 end
 
 %%
