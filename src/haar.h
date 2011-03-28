@@ -4,13 +4,16 @@
 extern "C" {
 #endif
 
-#include<stdlib.h>
+#include<stdint.h>
+
+typedef int64_t stride_t;
 
 typedef struct tagDomainList
-{ size_t *shapes;
-  size_t sz[2];
-  size_t cursor;
+{ stride_t *shapes;
+  stride_t sz[2];
+  stride_t cursor;
 } DomainList;
+
 typedef struct tagHaarWorkspace
 {
   DomainList domains;
@@ -28,14 +31,14 @@ void HaarWorkspaceClean(HaarWorkspace* ws);
  */
 
 void haar(HaarWorkspace* ws,
-          size_t ndim, size_t* shape,
-          float* out,  size_t* ostrides,
-          float* in,   size_t* istrides);
+          stride_t ndim, stride_t* shape,
+          float* out,  stride_t* ostrides,
+          float* in,   stride_t* istrides);
 
 void ihaar(HaarWorkspace* ws,
-           size_t ndim, size_t* shape,
-           float* out,  size_t* ostrides,
-           float* in,   size_t* istrides);
+           stride_t ndim, stride_t* shape,
+           float* out,  stride_t* ostrides,
+           float* in,   stride_t* istrides);
 
 #ifdef __cplusplus
 } //extern "C"

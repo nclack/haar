@@ -22,7 +22,7 @@ static const f32 expt02[] = {34.0f, -4.0f, -1.0f   ,-1.0f,
 class Haar1DF32:public ::testing::Test
 {
   public:
-    size_t length,istride[2],ostride[2];
+    stride_t length,istride[2],ostride[2];
     f32 *data;
     f32 *expt;
     f32 *res;
@@ -79,7 +79,7 @@ TEST_F(Haar1DF32,InverseInPlace)
 class Haar2DF32:public ::testing::Test
 {
   public:
-    size_t length,istride[3],ostride[3],shape[2];
+    stride_t length,istride[3],ostride[3],shape[2];
     f32 *data;
     f32 *expt;
     f32 *res;
