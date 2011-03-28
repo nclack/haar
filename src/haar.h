@@ -16,7 +16,7 @@ typedef struct tagHaarWorkspace
   DomainList domains;
 } HaarWorkspace;
 
-#define HAAR_WORKSPACE_INIT {0} 
+#define HAAR_WORKSPACE_INIT {{0}} 
 
 void HaarWorkspaceInit (HaarWorkspace* ws);
 void HaarWorkspaceClean(HaarWorkspace* ws);
@@ -29,13 +29,13 @@ void HaarWorkspaceClean(HaarWorkspace* ws);
 
 void haar(HaarWorkspace* ws,
           size_t ndim, size_t* shape,
-          float* out, size_t* ostrides,
-          float* in, size_t* istrides);
+          float* out,  size_t* ostrides,
+          float* in,   size_t* istrides);
 
 void ihaar(HaarWorkspace* ws,
            size_t ndim, size_t* shape,
-           float* out, size_t* ostrides,
-           float* in, size_t* istrides);
+           float* out,  size_t* ostrides,
+           float* in,   size_t* istrides);
 
 #ifdef __cplusplus
 } //extern "C"

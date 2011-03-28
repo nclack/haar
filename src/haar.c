@@ -23,11 +23,10 @@ typedef float T;
 * Attempts to optimized for contiguous blocks.                                *
 * IMPORTANT - this routine imposes an ordering for how the strides and shape. *
 *             The convention is that the lowest index should correspond to the*
-*             smallest 'natural' stride.                                      *
-*                                                                             *
+*             smallest 'natural' stride.  That is, an N-element 1D array      *
+*             would have stride: {1, N}.                                      *
 ******************************************************************************/
 
-static inline 
 unsigned u32log2(uint32_t v)
 {
   static const char LogTable256[256] = 
@@ -52,20 +51,19 @@ unsigned u32log2(uint32_t v)
   return r;
 }
 
-static inline
 unsigned u64log2(uint64_t v)
 { register uint64_t tt;
   return (tt=v>>32)?(32+u32log2((uint32_t)tt)):u32log2((uint32_t)v);
 }
 
 static
-void copy_recurse(size_t m, int64_t idim,size_t *shape,T* out,size_t *ostrides,T *in,size_t *istrides)
+void copy_recurse(int64_t m, int64_t idim,size_t *shape,T* out,size_t *ostrides,T *in,size_t *istrides)
 { size_t i,os,is;
   if(idim<0) { *out = *in; return; }
   if(idim<m) 
   { size_t nelem = shape[idim];
     while(idim--)
-      nelem *= shape[idim];
+      nelem *= shape[idim]; // FIXME?? suspect that nelem == ostrides[m] bc of conditions on m
     memcpy(out,in,sizeof(T)*nelem);
     return;
   } 
@@ -74,11 +72,13 @@ void copy_recurse(size_t m, int64_t idim,size_t *shape,T* out,size_t *ostrides,T
   for(i=0;i<shape[idim];++i)
     copy_recurse(m,idim-1,shape,out+os*i,ostrides,in+is*i,istrides);
 }
-static
+
 void copy(size_t ndim,size_t *shape,T* out,size_t *ostrides,T *in,size_t *istrides)
 { 
-  size_t m,d;
+  int64_t m;
   size_t *oshape,*ishape;
+  // 0. Nothing to do?
+  if(out==in) return;
   // 1. Find max index such that a block copy is ok
   //      ostrides[j]==istrides[j] and oshape[j]==ishape[j]==shape[j] for j<i
   //    where oshape and ishape are the shapes derived from the input
@@ -109,39 +109,180 @@ MemoryError:
 }
 
 /******************************************************************************
+*  ND ARRAY OPS ***************************************************************
+******************************************************************************/
+typedef void (   binary_vec_op_t)(size_t,T*,size_t,T*,size_t,T*,size_t);    // z[:] <- x[:] op y[:]
+typedef void (scalar_ip_vec_op_t)(size_t,T*,size_t,T);                      // z[:] .op a
+
+static
+void binary_op_recurse(
+    int64_t m, 
+    int64_t idim, 
+    size_t *shape,
+    T* z,size_t *zst,
+    T* x,size_t *xst, 
+    T* y,size_t *yst, 
+    binary_vec_op_t *f)
+{ size_t i,ox,oy,oz;
+  if(idim<m) 
+  { 
+    f(zst[m]/zst[0],z,zst[0],x,xst[0],y,yst[0]);
+    return;
+  } 
+  ox = xst[idim];
+  oy = yst[idim];
+  oz = zst[idim];
+  for(i=0;i<shape[idim];++i)
+    binary_op_recurse(m,idim-1,shape,z+oz*i,zst,x+ox*i,xst,y+oy*i,yst,f);
+}
+
+static
+void binary_op(
+    size_t ndim,
+    size_t *shape,
+    T* z,size_t *zst,
+    T* x,size_t *xst, 
+    T* y,size_t *yst, 
+    binary_vec_op_t *f)
+{ 
+  int64_t m;
+  size_t *zshape,*xshape,*yshape;
+
+  // 1. Find max index such that lower dimension indexes may be collapsed(vectorized)
+  //      ostrides[j]==istrides[j] and oshape[j]==ishape[j]==shape[j] for j<i
+  //    where oshape and ishape are the shapes derived from the input
+  //      strides.
+  if(!(zshape=alloca(sizeof(size_t)*ndim*3))) goto MemoryError;
+  xshape=zshape+  ndim;
+  yshape=zshape+2*ndim;
+  for(m=0;m<ndim;++m)                                                           // compute native shapes from strides
+  { zshape[m] = zst[m+1]/zst[m];
+    xshape[m] = xst[m+1]/xst[m];
+    yshape[m] = yst[m+1]/yst[m];
+  }
+  m=0;
+  for(m=0;m<ndim
+      && zst[m]==xst[m]
+      && zst[m]==yst[m]
+      && zshape[m]==xshape[m]
+      && zshape[m]==yshape[m]      
+      && zshape[m]== shape[m]
+      ;++m);
+
+  // 2. Recursively operate on outer dimension (max st shape is not 1)
+  //    use f when dimension gets to dimension i.
+  binary_op_recurse(m,ndim-1,shape,z,zst,x,xst,y,yst,f);
+  return;
+MemoryError:
+  fprintf(stderr,"Error: %s(%d)\n" 
+                 "\tCould not allocate block of %zu elements on stack.\n",
+                 __FILE__,__LINE__,2*ndim);
+  exit(1);
+}
+
+static
+void scalar_ip_recurse(
+    int64_t m, 
+    int64_t idim, 
+    size_t *shape,
+    T *z,size_t *zst,
+    T  a,
+    scalar_ip_vec_op_t *f)
+{ size_t i,oz;
+  if(idim<m) 
+  { 
+    f(zst[m]/zst[0],z,zst[0],a);
+    return;
+  } 
+  oz = zst[idim];
+  for(i=0;i<shape[idim];++i)
+    scalar_ip_recurse(m,idim-1,shape,z+oz*i,zst,a,f);
+}
+
+static
+void scalar_ip_op(
+    size_t ndim,
+    size_t *shape,
+    T* z,size_t *zst,
+    T a,
+    scalar_ip_vec_op_t *f)
+{ 
+  int64_t m;
+  size_t *zshape;
+
+  // 1. Find max index such that lower dimension indexes may be collapsed(vectorized)
+  //      ostrides[j]==istrides[j] and oshape[j]==ishape[j]==shape[j] for j<i
+  //    where oshape and ishape are the shapes derived from the input
+  //      strides.
+  if(!(zshape=alloca(sizeof(size_t)*ndim*2))) goto MemoryError;
+  // stride[i]   = shape[i-1]*shape[i-2]*...*shape[0]
+  // so shape[i] = stride[i+1]/stride[i]
+  for(m=0;m<ndim;++m)
+    zshape[m] = zst[m+1]/zst[m];
+  m=0;
+  for(m=0;m<ndim
+      &&  shape[m]==zshape[m]
+      ;++m);
+
+  // 2. Recursively operate on outer dimension (max st shape is not 1)
+  //    use f when dimension gets to dimension i.
+  scalar_ip_recurse(m,ndim-1,shape,z,zst,a,f);
+  return;
+MemoryError:
+  fprintf(stderr,"Error: %s(%d)\n" 
+                 "\tCould not allocate block of %zu elements on stack.\n",
+                 __FILE__,__LINE__,2*ndim);
+  exit(1);
+}
+/******************************************************************************
 *  VECTOR OPS *****************************************************************
 ******************************************************************************/
 
-
 // zs = xs + ys
-inline 
+static
 void vadd(size_t N, T* zs, size_t stz, T* xs, size_t stx, T* ys, size_t sty)
 { size_t i;
   for(i=0;i<N;++i)
     zs[i*stz] = xs[i*stx] + ys[i*sty];
 }
 
+void add(size_t ndim, size_t *shape, T *zs, size_t *stz, T *xs, size_t *stx, T *ys, size_t *sty) 
+{ binary_op(ndim,shape,zs,stz,xs,stx,ys,sty,vadd);
+}
+
 // zs = xs - ys
-inline 
+static
 void vsub(size_t N, T* zs, size_t stz, T* xs, size_t stx, T* ys, size_t sty)
 { size_t i;
   for(i=0;i<N;++i)
     zs[i*stz] = xs[i*stx] - ys[i*sty];
 }
 
+void sub(size_t ndim, size_t *shape, T *zs, size_t *stz, T *xs, size_t *stx, T *ys, size_t *sty) 
+{ binary_op(ndim,shape,zs,stz,xs,stx,ys,sty,vsub);
+}
+
 // zs = xs - 2*ys
-inline 
+static 
 void vsub2(size_t N, T* zs, size_t stz, T* xs, size_t stx, T* ys, size_t sty)
 { size_t i;
   for(i=0;i<N;++i)
     zs[i*stz] = xs[i*stx] - 2.0f*ys[i*sty];
 }
 
+void sub2(size_t ndim, size_t *shape, T *zs, size_t *stz, T *xs, size_t *stx, T *ys, size_t *sty) 
+{ binary_op(ndim,shape,zs,stz,xs,stx,ys,sty,vsub2);
+}
+
 // zs .*= a;
-inline 
+static 
 void vmul_scalar_ip(size_t N, T* zs, size_t stz, T a)
 { size_t i;
   for(i=0;i<N;++i) zs[i*stz] *= a;
+}
+
+void mul_ip(size_t ndim, size_t *shape, T *zs, size_t *stz, T a)
+{ scalar_ip_op(ndim,shape,zs,stz,a,vmul_scalar_ip);
 }
 
 /******************************************************************************
@@ -166,36 +307,54 @@ void vmul_scalar_ip(size_t N, T* zs, size_t stz, T a)
  * 1  2  3  4  5  6  7  8 |1' 2' 3' 4' 5' 6' 7' 8'    
  */
 
-void gather_swap(size_t N, size_t st, T* a, T* b)
+// swaps xs and ys.  ignores sz.
+static
+void swap_op(size_t N, T* zs, size_t stz, T* xs, size_t stx, T* ys, size_t sty)
 { size_t i;
   
   for(i=0;i<N;++i)
-  { T t;
-    t=a[i];
-    a[i]=b[i];
-    b[i]=t;
+  { register T t;
+    T *x,*y;
+    x=xs+i*stx, y=ys+i*sty;
+     t=*x;
+    *x=*y;
+    *y=t;
   }
 }
 
-void gather_recursion(size_t N, size_t st, T* left, T* right)
+void swap(size_t ndim, size_t *shape, T *x, size_t *sx, T *y, size_t *sy)
+{ binary_op(ndim,shape,x,sx,x,sx,y,sy,swap_op);
+}
+
+static
+void gather_recursion(size_t idim, size_t N, size_t st, T* left, T* right, size_t ndim, size_t* shape, size_t *strides)
 { 
   size_t halfN;
   halfN=N/2;
   if(halfN)
   { T *ll,*lr,*rl,*rr;
+    size_t *s;
+    s = shape + idim;
     ll = left;
     lr = left+st*halfN;
     rl = right;
     rr = right+st*halfN;
-    gather_recursion(halfN,st,ll,lr);
-    gather_recursion(halfN,st,rl,rr);
-    gather_swap(halfN,st,lr,rl);
+    gather_recursion(idim,halfN,st,ll,lr,ndim,shape,strides);
+    gather_recursion(idim,halfN,st,rl,rr,ndim,shape,strides);
+    { size_t t = *s;
+      *s = halfN;
+      swap(ndim,shape,lr,strides,rl,strides);
+      *s = t;
+    }
   } 
 }
 
-inline
-void gather(size_t N, T* zs, size_t s)
-{ gather_recursion(N/2,s,zs,zs+s*(N/2));
+void gather(size_t idim, size_t ndim, size_t *shape, T* z, size_t *st)
+{ //1. transpose so idim on last dim
+  size_t N,s;
+  N = shape[idim];
+  s = st[idim];
+  gather_recursion(idim,N/2,s,z,z+s*(N/2),ndim,shape,st);
 }
 
 // Scatter: zs -> [?]
@@ -216,25 +375,35 @@ void gather(size_t N, T* zs, size_t s)
  * 1 |1'|2 |2'|3 |3'|4 |4'|5 |5'|6 |6'|7 |7'|8 |8'
  */
 
-void scatter_recursion(size_t N, size_t st, T* left, T* right)
+static
+void scatter_recursion(size_t idim, size_t N, size_t st, T* left, T* right, size_t ndim, size_t* shape, size_t *strides)
 { 
   size_t halfN;
   halfN=N/2;
   if(halfN)
   { T *ll,*lr,*rl,*rr;
+    size_t *s;
+    s = shape + idim;
     ll = left;
     lr = left+st*halfN;
     rl = right;
     rr = right+st*halfN;
-    gather_swap(halfN,st,lr,rl);
-    scatter_recursion(halfN,st,ll,lr);
-    scatter_recursion(halfN,st,rl,rr);
+    { size_t t = *s;
+      *s = halfN;
+      swap(ndim,shape,lr,strides,rl,strides);
+      *s = t;
+    }
+    scatter_recursion(idim,halfN,st,ll,lr,ndim,shape,strides);
+    scatter_recursion(idim,halfN,st,rl,rr,ndim,shape,strides);
   } 
 }
 
-inline
-void scatter(size_t N, T* zs, size_t s)
-{ scatter_recursion(N/2,s,zs,zs+s*(N/2));
+void scatter(size_t idim, size_t ndim, size_t *shape, T* z, size_t *st)
+{ //1. transpose so idim on last dim
+  size_t N,s;
+  N = shape[idim];
+  s = st[idim];
+  scatter_recursion(idim,N/2,s,z,z+s*(N/2),ndim,shape,st);
 }
 
 /******************************************************************************
@@ -249,40 +418,41 @@ void scatter(size_t N, T* zs, size_t s)
 // The matrix multiplication underlying this is self-inverse so 
 // the kernels end up looking very similar!
 static
-void kernel(size_t N, T* out, size_t stout, T* in, size_t stin)
-{ const size_t halfN = N/2;                                      // e.g. (matlab) - the precise indexing is determined by strides
-  abort();                                                       // broken as it stands right now...requires temporary memory
-  vadd(halfN,out            ,stout,in,2*stin,in+stin,2*stin);    // out(    1:N  ,:) = in(1:2:NN,:)+in(2:2:NN,:);
-  vsub(halfN,out+halfN*stout,stout,in,2*stin,in+stin,2*stin);    // out((N+1):NN ,:) = in(1:2:NN,:)-in(2:2:NN,:);
-  vmul_scalar_ip(N,out,stout,INVSQRT2);
+void kernel_ip(size_t ndim, size_t *shape, T* out, size_t *s, size_t idim)
+{ size_t N,off;                                                               // e.g. (matlab) - the precise indexing is determined by strides
+  N=shape[idim];
+  off=s[idim];
+  shape[idim]=N/2;
+  s[idim]=2*off;
+  add (ndim, shape, out    , s, out, s, out+off, s);
+  sub2(ndim, shape, out+off, s, out, s, out+off, s);
+  shape[idim]=N;
+  s[idim]=off;
+  mul_ip(ndim, shape, out, s, INVSQRT2);
+  gather(idim, ndim, shape, out, s);
 }
 
 static
-void kernel_ip(size_t N, T* out, size_t s)
-{ const size_t halfN = N/2;                                      // e.g. (matlab) - the precise indexing is determined by strides
-  vadd (halfN,out  ,2*s,out,2*s,out+s,2*s);                      // out(1:2:NN ,:) = in(1:2:NN,:) +  in(2:2:NN,:);
-  vsub2(halfN,out+s,2*s,out,2*s,out+s,2*s);                      // out(2:2:NN ,:) = out(1:2:NN,:)-2*in(2:2:NN,:);
-  vmul_scalar_ip(N,out,s,INVSQRT2);
-  gather(N,out,s);
+void ikernel_ip(size_t ndim, size_t *shape, T* out, size_t *s, size_t idim)
+{ size_t N,off;                                                                 // e.g. (matlab) - the precise indexing is determined by strides
+  N=shape[idim]/2;
+  off=s[idim];
+  shape[idim]=N;
+  add (ndim, shape, out      , s, out, s, out+off*N, s);
+  sub2(ndim, shape, out+off*N, s, out, s, out+off*N, s);
+  shape[idim]=N*2;
+  mul_ip(ndim, shape, out, s, INVSQRT2);
+  scatter(idim, ndim, shape, out, s);
 }
-
-static
-void ikernel(size_t N, T* out, size_t stout, T* in, size_t stin)
-{ const size_t halfN = N/2;                                      // e.g. (matlab) - the precise indexing is determined by strides
-  abort();                                                       // broken as it stands right now...requires temporary memory
-  vadd(halfN,out      ,2*stout,in,stin,in+halfN*stin,stin);      // out(1:2:NN,:) = in(1:N,:)+in((N+1):NN,:);
-  vsub(halfN,out+stout,2*stout,in,stin,in+halfN*stin,stin);      // out(2:2:NN,:) = in(1:N,:)-in((N+1):NN,:);
-  vmul_scalar_ip(N,out,stout,INVSQRT2);
-}
-
-static
-void ikernel_ip(size_t N, T* out, size_t s)
-{ const size_t halfN = N/2;                                      // e.g. (matlab) - the precise indexing is determined by strides
+#if 0
+{ size_t halfN;                                                  // e.g. (matlab) - the precise indexing is determined by strides
+  halfN = N;
   vadd (halfN,out        ,s,out,s,out+halfN*s,s);                // out(     1:N,:) =  in(1:N,:)+in((N+1):NN,:);
   vsub2(halfN,out+s*halfN,s,out,s,out+halfN*s,s);                // out((N+1):NN,:) = out(1:N,:)-2*in((N+1):NN,:);
   vmul_scalar_ip(N,out,s,INVSQRT2);
   scatter(N,out,s);
 }
+#endif
 
 /******************************************************************************
 *  DOMAINS  *******************************************************************
@@ -427,8 +597,9 @@ void haar(HaarWorkspace* ws, size_t ndim, size_t* shape, T* out, size_t* ostride
   while((domain=NextDomain(domains)))
     for(i=0;i<ndim;++i)
       if(domain[i]>1)
+        kernel_ip(ndim, domain, out, ostrides, i);
         //kernel(domain[i],out,ostrides[i],in,istrides[i]);
-        kernel_ip(domain[i],out,ostrides[i]);
+        //kernel_ip(domain[i],out,ostrides[i]);
 }
 
 void ihaar(HaarWorkspace* ws, size_t ndim, size_t* shape, T* out, size_t* ostrides, T* in, size_t* istrides)
@@ -443,6 +614,7 @@ void ihaar(HaarWorkspace* ws, size_t ndim, size_t* shape, T* out, size_t* ostrid
   while((domain=PrevDomain(domains)))
     for(i=0;i<ndim;++i)
       if(domain[i]>1)
+        ikernel_ip(ndim, domain, out, ostrides, i);
         //ikernel(domain[i],out,ostrides[i],in,istrides[i]);
-        ikernel_ip(domain[i],out,ostrides[i]);
+        //ikernel_ip(domain[i],out,ostrides[i]);
 }
