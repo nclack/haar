@@ -1,7 +1,7 @@
 #include <array.h>
 #include <image.h>
 #include <utilities.h>
-#include <haar-mylib.h>
+#include <util-mylib.h>
 #include <fft.h>       //for Padding routines
 
 char *spec[] = {"<out:TIFF> <in:TIFF>",0};
