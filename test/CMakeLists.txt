@@ -41,6 +41,7 @@ add_executable(alltests
 )
 target_link_libraries(alltests
  ${GTEST_BOTH_LIBRARIES}
+ mylib
 )
 if(${OpenMP_FOUND})
   set_target_properties(

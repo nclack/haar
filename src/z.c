@@ -1,7 +1,10 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h> //for memcpy
 
 typedef float   T;
 
+#define MAXDIM (1024)
 #define get_bit(bits,x) (((bits)>>x)&1)
 
 static inline
@@ -15,21 +18,39 @@ size_t get_offset(size_t ndim, size_t *shape, size_t *strides, uint64_t bits)
 // Potential optimization
 // - get_strides ends up computing the same values over and over again...
 //   that is the get_bit(i)*strides[i] is always the same...
+//
+// - right now the terminal case is when the shape is 1x1x1x...1
+//
+//   However, stopping at the 2x2x2x...2 level, could take advantage of
+//   block copies?  The size of the block is 2xsizeof(T) so maybe not
+//   a big deal.
+//
+//   A more general view of this optimization is to unroll the last
+//   few iterations to avoid some excess computation.
 //   
-void zorder(size_t ndim, size_t *shape, T *data, size_t *strides)
-{ size_t i,idim,halfN;
-  uint64_t ichild,nchildren;        // limited to 64 dimensions without a bigint impl
-  char index[sizoef(ichild)];
-  for(i=0;i<ndim;++i)               // 1. half each dimension
-    shape[idim]/=2;
-  children = 1<<ndim;
-  for(ichild=0;ichild<children;++i) // 2. z-order children
-    zorder(ndim,shape,data+get_offset(ndim,strides,ichild),strides); 
-  for(ichild=0;ichild<children;++i) // 3. copy the blocks 
-    //copy
-    ;
 
-
+void zorder(size_t ndim, size_t *shape,
+            T *out, size_t *ostrides,
+            T *in , size_t *istrides)
+{ size_t i;
+  uint64_t ichild,children,n;
+  size_t tshape[MAXDIM];
+  memcpy(tshape,shape,sizeof(size_t)*ndim);
+  n=1;
+  for(i=0;i<ndim;++i)                                        // 1. half each dimension
+    n*=(tshape[i]/=2);
+  children = 1<<ndim;                                        /* 2^ndim                 */
+  if(tshape[0]!=0)
+  { for(i=0;i<children;++i)                                  // 2. z-order children
+      zorder(ndim,tshape,
+          out + i*n*ostrides[0],ostrides,
+          in  + get_offset(ndim,tshape,istrides,i),istrides);
+    return;
+  }
+  else                                                       // 3. copy the blocks
+  { *out = *in;
+    return;
+  }
 }
 
 // tree
