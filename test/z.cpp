@@ -103,6 +103,12 @@ TEST_F(ZOrder2DF32,Forward)
   ASSERT_NEAR(0.0f,RMSE<f32>(length,res,expt),TOL_F32);
 }
 
+TEST_F(ZOrder2DF32,Inverse)
+{
+  izorder(2,shape,res,ostride,expt,istride);
+  ASSERT_NEAR(0.0f,RMSE<f32>(length,res,data),TOL_F32);
+}
+
 TEST_F(ZOrder2DF32,SelfInverse)
 {
   zorder(2,shape,res,ostride,data,istride);
@@ -150,9 +156,21 @@ TEST_F(ZOrder3DF32,Forward)
   ASSERT_NEAR(0.0f,RMSE<f32>(length,res,expt),TOL_F32);
 }
 
+TEST_F(ZOrder3DF32,Inverse)
+{
+  izorder(3,shape,res,ostride,expt,istride);
+  ASSERT_NEAR(0.0f,RMSE<f32>(length,res,data),TOL_F32);
+}
+
+/*
+   // For 3d the transform is not self inverse.
+   // I'm not exactly sure why.  I suspect power-of-two
+   // number of dimensions may be self inverse.
+
 TEST_F(ZOrder3DF32,SelfInverse)
 {
   zorder(3,shape,res,ostride,data,istride);
   zorder(3,shape,expt,ostride,res,istride);
   ASSERT_NEAR(0.0f,RMSE<f32>(length,data,expt),TOL_F32);
 }
+*/

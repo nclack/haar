@@ -120,3 +120,24 @@ MemoryError2:
           __FILE__,__LINE__,sizeof_shapes_bytes(a));
   exit(1);  
 }
+
+Array* ZOrder_Inverse_Transform(Array *a)
+{ size_t *strides, *shape;
+  Array *out;
+  out = Make_Array_With_Shape(a->kind,a->type,Array_Shape(a));
+  if(!( strides = alloca(sizeof_strides_bytes(a)) )) goto MemoryError1;
+  if(!( shape   = alloca(sizeof_shapes_bytes(a) ) )) goto MemoryError2;
+  compute_strides_size_t(a,strides);
+  copy_dims_size_t(a->ndims, a->dims, shape);
+  izorder(a->ndims,shape,out->data,strides,a->data,strides);
+  return out;
+MemoryError1:
+  fprintf(stderr,"Memory Error: %s(%d) - Failed to allocate %lu bytes on stack.\n",
+      __FILE__,__LINE__,sizeof_strides_bytes(a));
+  exit(1);
+  
+MemoryError2:
+  fprintf(stderr,"Memory Error: %s(%d) - Failed to allocate %lu bytes on stack.\n",
+          __FILE__,__LINE__,sizeof_shapes_bytes(a));
+  exit(1);  
+}

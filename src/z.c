@@ -53,6 +53,33 @@ void zorder(size_t ndim, size_t *shape,
   }
 }
 
+
+// Inverse is the same as the forward transform except the role
+// of out an in are swapped.
+void izorder(size_t ndim, size_t *shape,
+             T *out, size_t *ostrides,
+             T *in , size_t *istrides)
+{ size_t i;
+  uint64_t ichild,children,n;
+  size_t tshape[MAXDIM];
+  memcpy(tshape,shape,sizeof(size_t)*ndim);
+  n=1;
+  for(i=0;i<ndim;++i)                                        // 1. half each dimension
+    n*=(tshape[i]/=2);
+  children = 1<<ndim;                                        /* 2^ndim                 */
+  if(tshape[0]!=0)
+  { for(i=0;i<children;++i)                                  // 2. z-order children
+      izorder(ndim,tshape,
+          out + get_offset(ndim,tshape,ostrides,i),ostrides,
+          in  + i*n*istrides[0],istrides);
+    return;
+  }
+  else                                                       // 3. copy the blocks
+  { 
+    *out = *in;
+    return;
+  }
+}
 // tree
 // each node has 2^ndim branches
 // branches are enumerated by offsets, all shapes are the same

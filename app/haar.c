@@ -4,7 +4,7 @@
 #include <util-mylib.h>
 #include <fft.h>       //for Padding routines
 
-char *spec[] = {"<out:TIFF> <in:TIFF>",0};
+char *spec[] = {"[-1|--inverse] <out:TIFF> <in:TIFF>",0};
 
 void pad(Array *a)
 {
@@ -22,7 +22,10 @@ int main(int argc, char *argv[])
     a = Read_Image(Get_String_Arg("in"), 0);
     Convert_Array_Inplace(a, PLAIN_KIND, FLOAT32_TYPE, 32, 1.0);
     pad(a);
-    Haar_Transform(a);
+    if(Is_Arg_Matched("-1")||Is_Arg_Matched("--inverse"))
+      Haar_Inverse_Transform(a);
+    else
+      Haar_Transform(a);
     Write_Image(Get_String_Arg("out"), a, 0);
     Free_Array(a);
   }

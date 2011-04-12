@@ -16,11 +16,6 @@ add_executable(haar app/haar.c
   ${SRCS})
 target_link_libraries(haar mylib)
 
-add_executable(ihaar app/ihaar.c
-  ${HDRS}
-  ${SRCS})
-target_link_libraries(ihaar mylib)
-
 add_executable(zorder app/zorder.c
   ${HDRS}
   ${SRCS})
