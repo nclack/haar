@@ -19,6 +19,13 @@ size_t get_offset(size_t ndim, size_t *shape, size_t *strides, uint64_t bits)
 // - get_strides ends up computing the same values over and over again...
 //   that is the get_bit(i)*strides[i] is always the same...
 //
+//   - for each level there are a d^ndim children
+//   - log2(shape[0]) levels
+//   - for each level need 
+//     - the shape
+//     - the input block strides
+//     - the output block strides
+//
 // - right now the terminal case is when the shape is 1x1x1x...1
 //
 //   However, stopping at the 2x2x2x...2 level, could take advantage of
