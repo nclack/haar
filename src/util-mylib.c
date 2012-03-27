@@ -1,3 +1,8 @@
+/** \file 
+ *  Mylib interface
+ *  \author Nathan Clack <clackn@janelia.hhmi.org>
+ *  \date   2011
+ */
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -6,10 +11,15 @@
 #include <haar.h>
 #include <z.h>
 
-/*
- * Helpers
- */
 
+//  HELPERS  ///////////////////////////////////////////////////////////////////
+
+/** Compute the strides of a mylib Array
+ *  
+ *  \param[in]  a   The mylib array with \a d dimensions.
+ *  \param[out] out A preallocated array with \a d+1 elements.
+ *  \private
+ */
 static inline
 void compute_strides_i64(Array *a, stride_t *out)
 { size_t i;
@@ -18,6 +28,13 @@ void compute_strides_i64(Array *a, stride_t *out)
     out[i+1] = out[i]*(a->dims[i]);
 }
 
+/** Translates the mylib array shape type into the shape type used here.
+ *  
+ *  \param[in]  ndim  The number of dimensions.
+ *  \param[in]  dims  The input shape.
+ *  \param[out] shape The output shape.
+ *  \private
+ */
 static inline
 void copy_dims_i64(size_t ndim, Dimn_Type *dims, stride_t *shape)
 {
@@ -26,6 +43,12 @@ void copy_dims_i64(size_t ndim, Dimn_Type *dims, stride_t *shape)
     shape[i] = dims[i];
 }
 
+/** Compute the strides of a mylib Array
+ *  
+ *  \param[in]  a   The mylib array with \a d dimensions.
+ *  \param[out] out A preallocated array with \a d+1 elements.
+ *  \private
+ */
 static inline
 void compute_strides_size_t(Array *a, size_t *out)
 { size_t i;
@@ -34,6 +57,13 @@ void compute_strides_size_t(Array *a, size_t *out)
     out[i+1] = out[i]*(a->dims[i]);
 }
 
+/** Translates the mylib array shape type into the shape type used here.
+ *  
+ *  \param[in]  ndim  The number of dimensions.
+ *  \param[in]  dims  The input shape.
+ *  \param[out] shape The output shape.
+ *  \private
+ */
 static inline
 void copy_dims_size_t(size_t ndim, Dimn_Type *dims, size_t *shape)
 {
@@ -49,6 +79,22 @@ void copy_dims_size_t(size_t ndim, Dimn_Type *dims, size_t *shape)
 #define sizeof_strides_bytes(array) (sizeof(stride_t)*((array)->ndims+1))
 #define sizeof_shapes_bytes(array)  (sizeof(stride_t)*((array)->ndims))
 
+/** \defgroup MylibGroup Mylib interface
+ * @{
+ */
+
+/** The in-place forward Haar transform (for a mylib Array)
+ * Example:
+ * \code
+ * Array *a;
+ * a = Read_Image("in.tif", 0);
+ * Convert_Array_Inplace(a, PLAIN_KIND, FLOAT32_TYPE, 32, 1.0);
+ * pad(a); // resize to power of two dimensions
+ * Haar_Transform(a);
+ * Write_Image("out.tif", a, 0);
+ * Free_Array(a);
+ * \endcode
+ */
 void Haar_Transform(Array *a)
 { stride_t *strides, *shape;
   HaarWorkspace ws = HAAR_WORKSPACE_INIT;
@@ -70,6 +116,7 @@ MemoryError2:
   exit(1);  
 }
 
+/// The in-place inverse Haar transform (for a mylib Array)
 void Haar_Inverse_Transform(Array *a)
 { stride_t *strides,*shape;
   HaarWorkspace ws = {{0}};
@@ -91,6 +138,7 @@ MemoryError2:
           __FILE__,__LINE__,sizeof_shapes_bytes(a));
   exit(1);  
 }
+/** @} */ //end MylibGroup docs
 
 /*
  * ZORDER
@@ -100,6 +148,13 @@ MemoryError2:
 #define sizeof_strides_bytes(array) (sizeof(size_t)*((array)->ndims+1))
 #define sizeof_shapes_bytes(array)  (sizeof(size_t)*((array)->ndims))
 
+/** \addtogroup MylibGroup
+ * @{
+ */
+
+/** The forward zorder transform for a mylib Array
+ *  \returns a new Array with the result.
+ */
 Array* ZOrder_Transform(Array *a)
 { size_t *strides, *shape;
   Array *out;
@@ -121,6 +176,9 @@ MemoryError2:
   exit(1);  
 }
 
+/** The inverse zorder transform for a mylib Array
+ *  \returns a new Array with the result.
+ */
 Array* ZOrder_Inverse_Transform(Array *a)
 { size_t *strides, *shape;
   Array *out;
@@ -141,3 +199,5 @@ MemoryError2:
           __FILE__,__LINE__,sizeof_shapes_bytes(a));
   exit(1);  
 }
+
+/** @} */ //end MylibGroup docs

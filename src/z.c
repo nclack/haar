@@ -1,3 +1,30 @@
+/** \file
+ * z-order transform
+ *
+ * Potential optimization
+ * - get_strides ends up computing the same values over and over again...
+ *   that is the get_bit(i)*strides[i] is always the same...
+ *   \see DomainList
+ *
+ *   - for each level there are a d^ndim children
+ *   - log2(shape[0]) levels
+ *   - for each level need 
+ *     - the shape
+ *     - the input block strides
+ *     - the output block strides
+ *
+ * - right now the terminal case is when the shape is 1x1x1x...1
+ *
+ *   However, stopping at the 2x2x2x...2 level, could take advantage of
+ *   block copies?  The size of the block is 2xsizeof(T) so maybe not
+ *   a big deal.
+ *
+ *   A more general view of this optimization is to unroll the last
+ *   few iterations to avoid some excess computation.
+ *
+ * \author Nathan Clack <clackn@janelia.hhmi.org>
+ * \date   2011
+ */   
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h> //for memcpy
@@ -7,6 +34,19 @@ typedef float   T;
 #define MAXDIM (1024)
 #define get_bit(bits,x) (((bits)>>x)&1)
 
+/** Internally used utility function.
+ *  \private
+ *  \returns The byte offset to a point in the array specified by a bit vector
+ *  \a bits.
+ *
+ *  \see zorder
+ *  \see izorder
+ *
+ *  \param[in] ndim    The number of dimensions.
+ *  \param[in] shape   The shape of the (sub)volume.
+ *  \param[in] strides An \a ndim+1 length array describing the memory layout.
+ *  \param[in] bits    A bit vector describing a subdivision scheme.
+ */
 static inline
 size_t get_offset(size_t ndim, size_t *shape, size_t *strides, uint64_t bits)
 { size_t i,off=0;
@@ -15,27 +55,30 @@ size_t get_offset(size_t ndim, size_t *shape, size_t *strides, uint64_t bits)
   return off;
 }
 
-// Potential optimization
-// - get_strides ends up computing the same values over and over again...
-//   that is the get_bit(i)*strides[i] is always the same...
-//
-//   - for each level there are a d^ndim children
-//   - log2(shape[0]) levels
-//   - for each level need 
-//     - the shape
-//     - the input block strides
-//     - the output block strides
-//
-// - right now the terminal case is when the shape is 1x1x1x...1
-//
-//   However, stopping at the 2x2x2x...2 level, could take advantage of
-//   block copies?  The size of the block is 2xsizeof(T) so maybe not
-//   a big deal.
-//
-//   A more general view of this optimization is to unroll the last
-//   few iterations to avoid some excess computation.
-//   
 
+/** \defgroup ZOrderGroup Z-Order Transform
+ *  @{
+ */
+
+/** Forward z-order transform for nD volumes.
+ *
+ *  \param[in] ndim      The number of dimensions.  The input and output fields must 
+ *                       have the same number of dimensions, but the size of some    
+ *                       dimensions may be 1.                                        
+ *  \param[in] shape     An array of size \a ndim.  It describes the size of the     
+ *                       rectangular volume to copy.                                 
+ *  \param[in,out] out   The output data volume.                                     
+ *  \param[in] ostrides  An array of size \a ndim+1 that describes the memory        
+ *                       layout of \a out. \c ostrides[i] should be the number       
+ *                       of items between two adjacent voxels on dimension \c        
+ *                       i. \c ostrides[ndim] is the total number of bytes in        
+ *                       \a out.                                                     
+ *  \param[in] in        The input data volume                                       
+ *  \param[in] istrides  An array of size \a ndim+1 that describes the memory        
+ *                       layout of \a in.                                            
+ *
+ *  \see izorder
+ */
 void zorder(size_t ndim, size_t *shape,
             T *out, size_t *ostrides,
             T *in , size_t *istrides)
@@ -60,9 +103,28 @@ void zorder(size_t ndim, size_t *shape,
   }
 }
 
-
-// Inverse is the same as the forward transform except the role
-// of out an in are swapped.
+/** Inverse z-order transform
+ *
+ *  \param[in] ndim      The number of dimensions.  The input and output fields must 
+ *                       have the same number of dimensions, but the size of some    
+ *                       dimensions may be 1.                                        
+ *  \param[in] shape     An array of size \a ndim.  It describes the size of the     
+ *                       rectangular volume to copy.                                 
+ *  \param[in,out] out   The output data volume.                                     
+ *  \param[in] ostrides  An array of size \a ndim+1 that describes the memory        
+ *                       layout of \a out. \c ostrides[i] should be the number       
+ *                       of items between two adjacent voxels on dimension \c        
+ *                       i. \c ostrides[ndim] is the total number of bytes in        
+ *                       \a out.                                                     
+ *  \param[in] in        The input data volume                                       
+ *  \param[in] istrides  An array of size \a ndim+1 that describes the memory        
+ *                       layout of \a in.                                            
+ *
+ *  Implementation is the same as the forward transform except the role
+ *  of out and in are swapped.
+ *
+ *  \see zorder
+ */
 void izorder(size_t ndim, size_t *shape,
              T *out, size_t *ostrides,
              T *in , size_t *istrides)
@@ -87,6 +149,7 @@ void izorder(size_t ndim, size_t *shape,
     return;
   }
 }
+/** @} */ // end zorder transform group
 // tree
 // each node has 2^ndim branches
 // branches are enumerated by offsets, all shapes are the same

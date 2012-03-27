@@ -1,3 +1,8 @@
+/** \file 
+ *  Z-order transform
+ *  \author Nathan Clack <clackn@janelia.hhmi.org>
+ *  \date   2011
+ */
 #pragma once
 
 #ifdef __cplusplus

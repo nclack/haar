@@ -1,3 +1,8 @@
+/** \file 
+ *  Haar transform
+ *  \author Nathan Clack <clackn@janelia.hhmi.org>
+ *  \date   2011
+ */
 #pragma once
 
 #ifdef __cplusplus
@@ -19,16 +24,10 @@ typedef struct tagHaarWorkspace
   DomainList domains;
 } HaarWorkspace;
 
-#define HAAR_WORKSPACE_INIT {{0}} 
+#define HAAR_WORKSPACE_INIT {{0}}  ///< static initializer for HaarWorkspace
 
 void HaarWorkspaceInit (HaarWorkspace* ws);
 void HaarWorkspaceClean(HaarWorkspace* ws);
-
-/* shape   - The size of the volume to transform
- * strides - ndim+1 element arrays
- *           describing a linear layout for the scalar field
- *           The stride between individual scalars should be stride[0].
- */
 
 void haar(HaarWorkspace* ws,
           stride_t ndim, stride_t* shape,

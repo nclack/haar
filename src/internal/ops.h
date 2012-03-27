@@ -1,3 +1,12 @@
+/** \file
+ *  Private interface to array operations.
+ *
+ *  This header exposes these functions primarly for testing.
+ *  \see haar.c
+ *
+ *  \author Nathan Clack <clackn@janelia.hhmi.org>
+ *  \date   2011
+ */
 #pragma once
 
 #ifdef __cplusplus
