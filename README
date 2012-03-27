@@ -1,13 +1,13 @@
 # Haar
 
-nD [Haar] transform and it's inverse.
+nD [Haar][2] transform and it's inverse.
 
 ## Introduction
 
 I wanted to play around with wavelet based blending and multi-scale
 representations in the data I work with, which is often a 3d-scalar field.
 
-I also wrote a [z-order] transform thinking it would be fun to implement the
+I also wrote a [z-order][1] transform thinking it would be fun to implement the
 haar transform in a cache oblivious way.  The z-ordering gives the data a
 hierarchical structure in memory that helps coallesce memory access in a 
 recursive algorithm, like the one commonly used to implement wavelet 
@@ -22,5 +22,6 @@ same.  You can also pass in, or output to, a subvolume of an nd-array.
 The next thing I want to do is do a GPU implementation, maybe do some other
 wavelets, and then actually use the code for something (good, not evil).
 
-[z-order]: http://en.wikipedia.org/wiki/Z-order_(curve)
-[Haar]: http://en.wikipedia.org/wiki/Haar_wavelet
+[1]: http://en.wikipedia.org/wiki/z-order_curve
+[2]: http://en.wikipedia.org/wiki/Haar_wavelet
+
